@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a1a"/>
+    </marker>
+    <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a8a8a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="640" fill="#ffffff"/>
+  <text x="450" y="28" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">soarm-ws: dependency graph</text>
+
+  <!-- Sources row -->
+  <g>
+    <rect x="30" y="60" width="150" height="64" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="105" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1a1a">imu_sdk</text>
+    <text x="105" y="105" text-anchor="middle" font-size="11" fill="#444">IMU transport + firmware</text>
+  </g>
+
+  <g>
+    <rect x="375" y="60" width="150" height="64" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="450" y="82" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1a1a">SO-ARM100</text>
+    <text x="450" y="99" text-anchor="middle" font-size="11" fill="#444">URDF / MJCF / CAD</text>
+    <text x="450" y="114" text-anchor="middle" font-size="10" fill="#777">vendored, read-only</text>
+  </g>
+
+  <g>
+    <rect x="720" y="60" width="150" height="64" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="795" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1a1a">soarm_sdk</text>
+    <text x="795" y="105" text-anchor="middle" font-size="11" fill="#444">servo transport SDK</text>
+  </g>
+
+  <!-- Middle row -->
+  <g>
+    <rect x="195" y="230" width="330" height="76" rx="6" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="360" y="258" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a1a">m5teleop</text>
+    <text x="360" y="277" text-anchor="middle" font-size="11" fill="#444">teleoperation — the integration point</text>
+    <text x="360" y="293" text-anchor="middle" font-size="10" fill="#777">talks to servos via lerobot's SO100Follower</text>
+  </g>
+
+  <g>
+    <rect x="650" y="230" width="220" height="76" rx="6" fill="#ffffff" stroke="#8a8a8a" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="760" y="256" text-anchor="middle" font-size="15" font-weight="700" fill="#555">soarm_mjlab</text>
+    <text x="760" y="274" text-anchor="middle" font-size="11" fill="#666">RL training via mjlab / MuJoCo</text>
+    <text x="760" y="290" text-anchor="middle" font-size="10" fill="#888">in progress — Phase 1</text>
+  </g>
+
+  <!-- Bottom row -->
+  <g>
+    <rect x="195" y="400" width="230" height="70" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="310" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1a1a">soarm_lerobot</text>
+    <text x="310" y="446" text-anchor="middle" font-size="11" fill="#444">dataset recording + imitation learning</text>
+  </g>
+
+  <g>
+    <rect x="500" y="400" width="230" height="70" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2" stroke-dasharray="2,2"/>
+    <text x="615" y="428" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1a1a">camera_calibration</text>
+    <text x="615" y="446" text-anchor="middle" font-size="11" fill="#444">standalone — no shared deps</text>
+  </g>
+
+  <!-- Arrows: sources -> m5teleop -->
+  <path d="M 115 124 L 250 230" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="145" y="180" font-size="10" fill="#555">ImuReader, ImuData</text>
+
+  <path d="M 440 124 L 400 230" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="405" y="180" font-size="10" fill="#555">URDF (pinocchio / viser FK)</text>
+
+  <!-- SO-ARM100 -> soarm_mjlab -->
+  <path d="M 490 124 L 700 230" fill="none" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrow-gray)"/>
+  <text x="590" y="150" font-size="10" fill="#777">MJCF (sim asset)</text>
+
+  <!-- m5teleop -> soarm_lerobot -->
+  <path d="M 340 306 L 320 400" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="345" y="360" font-size="10" fill="#555">optional --record</text>
+
+  <!-- soarm_mjlab -> soarm_sdk (planned deploy path, curved) -->
+  <path d="M 830 230 C 850 160, 830 100, 810 124" fill="none" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrow-gray)"/>
+  <text x="760" y="180" font-size="10" fill="#777">deploy via</text>
+  <text x="760" y="193" font-size="10" fill="#777">RobotInterface</text>
+  <text x="760" y="206" font-size="10" fill="#999">(planned)</text>
+
+  <!-- Legend -->
+  <g transform="translate(30, 520)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="38" y="4" font-size="12" fill="#333">active, wired today</text>
+
+    <line x1="220" y1="0" x2="250" y2="0" stroke="#8a8a8a" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="258" y="4" font-size="12" fill="#333">in progress / planned</text>
+
+    <rect x="480" y="-10" width="18" height="18" rx="3" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-dasharray="2,2"/>
+    <text x="505" y="4" font-size="12" fill="#333">standalone package</text>
+  </g>
+
+  <text x="450" y="580" text-anchor="middle" font-size="11" fill="#888">soarm-ws is a thin umbrella repo: no root package, no build orchestration —</text>
+  <text x="450" y="596" text-anchor="middle" font-size="11" fill="#888">each box above is an independently-versioned git submodule with its own GitHub remote.</text>
+</svg>

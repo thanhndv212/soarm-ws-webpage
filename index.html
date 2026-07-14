@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="soarm-ws: an open-source, modular full-stack workspace for the SO-ARM100 manipulator — servo/IMU SDKs, teleoperation, imitation learning, camera calibration, and MuJoCo-based RL training.">
+  <meta name="keywords" content="SO-ARM100, manipulator, robotics, teleoperation, imitation learning, reinforcement learning, LeRobot, mjlab, open source">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>soarm-ws: A Full-Stack Workspace for SO-ARM100 Manipulator Research</title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div class="navbar-menu">
+    <div class="navbar-start" style="flex-grow: 1; justify-content: center;">
+      <a class="navbar-item" href="https://thanhndv212.github.io">
+        <span class="icon">
+          <i class="fas fa-user"></i>
+        </span>
+        <span>Thanh D. V. Nguyen</span>
+      <span class="icon">
+          <i class="fas fa-home"></i>
+      </span>
+      </a>
+
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">
+          More Research
+        </a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="https://thanhndv212.github.io/figaroh-plus-webpage/">
+            Figaroh - Robotic SysID toolbox
+          </a>
+          <a class="navbar-item" href="https://thanhndv212.github.io/tiago-calibration-webpage/">
+            Tiago - Mobile Manipulator Calibration
+          </a>
+          <a class="navbar-item" href="https://thanhndv212.github.io/talos-calibration-webpage/">
+            TALOS - Humanoid Calibration
+          </a>
+          <a class="navbar-item" href="https://thanhndv212.github.io/soarm-ws-webpage/">
+            SO-ARM Workspace - Full-Stack Manipulation
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</nav>
+
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">soarm-ws: A Full-Stack Workspace for SO-ARM100 Manipulator Research</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">Thanh D. V. Nguyen</span>
+          </div>
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://github.com/thanhndv212/soarm-ws" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://github.com/TheRobotStudio/SO-ARM100" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-robot"></i>
+                  </span>
+                  <span>Hardware</span>
+                  </a>
+              </span>
+              <span class="link-block">
+                <a href="https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-map"></i>
+                  </span>
+                  <span>Roadmap</span>
+                  </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Overview</h2>
+        <div class="content has-text-justified">
+          <p>
+            <a href="https://github.com/TheRobotStudio/SO-ARM100">SO-ARM100</a> (and its SO-ARM101 refresh) is an
+            open-source 6-DOF manipulator that anchors a growing community of full-stack robotics work: teleoperation,
+            imitation learning, and reinforcement learning, all on hardware you can 3D-print yourself.
+            <code>soarm-ws</code> is my ongoing, modular workspace for that stack — a thin umbrella repository over
+            six independently-versioned packages, each its own GitHub remote tracked as a git submodule, with no
+            shared build system forcing them into lockstep. That structure is deliberate: hardware transport (servo
+            and IMU SDKs), the teleoperation loop, dataset recording, camera tooling, and simulation/RL training all
+            evolve at different speeds, and keeping them decoupled means a change in one doesn't force a release of
+            the others. This page tracks the workspace as it stands today, and will keep changing as the packages do.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Architecture</h2>
+        <div class="content">
+          <p><img src="./static/images/soarm_ws_architecture.svg" alt="soarm-ws dependency graph" style="max-width:100%; height:auto;"></p>
+          <p>
+            <code>imu_sdk</code> and the vendored <code>SO-ARM100</code> robot description feed into
+            <code>m5teleop</code>, the integration point that runs the real-time teleoperation loop (IMU → EKF →
+            orientation control → IK → servo commands, all logged through Rerun). Recording is opt-in: pass
+            <code>--record</code> and <code>m5teleop</code> hands frames to <code>soarm_lerobot</code>, which buffers
+            episodes into a LeRobotDataset for ACT / Diffusion Policy training — with no import-level dependency back
+            the other way. <code>soarm_sdk</code> and <code>camera_calibration</code> are standalone: the former is a
+            parallel, self-contained Feetech servo SDK (used by its own calibration/dashboard tools, not currently
+            wired into the teleop loop), the latter a Rerun-based camera intrinsics/ArUco toolkit with no shared
+            dependencies at all. <code>soarm_mjlab</code> is the newest branch — RL training of SO-ARM100 in MuJoCo
+            via <a href="https://github.com/mujocolab/mjlab">mjlab</a>, still in progress, planned to deploy trained
+            policies through the same <code>soarm_sdk.RobotInterface</code> that drives real hardware.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Packages</h2>
+        <div class="content">
+
+          <h4>soarm_sdk <span class="tag is-success">stable</span></h4>
+          <p>Python SDK for the Feetech STS/SCS serial bus servo protocol — port handling, packet framing, batch
+          calibration planning (ID reassignment, limits, torque, baud rate), and the tick↔radian conversion layer
+          everything else builds on. Ships a 7-tab Viser browser dashboard with live 3-D FK for homing, PID tuning,
+          and monitoring.</p>
+
+          <h4>imu_sdk <span class="tag is-success">stable</span></h4>
+          <p>Transport + firmware for M5StickC/ESP32 IMU boards (MPU6050/6500/6886/9250, 6- or 9-axis). Firmware
+          streams JSON over serial at ~100 Hz with on-device gyro bias calibration; orientation itself is computed
+          host-side by <code>m5teleop</code>'s error-state Kalman filter.</p>
+
+          <h4>m5teleop <span class="tag is-info">active</span></h4>
+          <p>The integration point: a 50 Hz real-time loop wiring IMU → ESKF → cascade orientation controller → IK
+          (pink/pinocchio) → the arm over lerobot's <code>SO100Follower</code>, with a parallel Viser sim and full
+          Rerun logging. <code>--record</code> optionally streams frames into <code>soarm_lerobot</code>.</p>
+
+          <h4>soarm_lerobot <span class="tag is-info">active</span></h4>
+          <p>Dataset recording and imitation-learning training. <code>TeleopRecorder</code> detects episode
+          boundaries and writes LeRobotDataset episodes; <code>dataset.py</code> loads them into normalized,
+          chunked torch datasets for ACT and Diffusion Policy. Operates purely on recorded data — decoupled from
+          how it was captured.</p>
+
+          <h4>camera_calibration <span class="tag is-success">stable</span></h4>
+          <p>Standalone camera intrinsics and ArUco tooling: chessboard calibration, live detection monitor, marker
+          generation, webcam parameter estimation — a unified CLI, Rerun for all visualization (no
+          <code>cv2.imshow</code>, works headless). Not wired into the teleop pipeline; built for future eye-in-hand
+          and workspace-calibration work.</p>
+
+          <h4>soarm_mjlab <span class="tag is-warning">in progress</span></h4>
+          <p>RL training of SO-ARM100 in MuJoCo via <a href="https://github.com/mujocolab/mjlab">mjlab</a>, targeting
+          deployment through <code>soarm_sdk.RobotInterface</code> — the same interface real hardware uses, so a
+          trained policy won't care whether it's driving sim or the physical arm. Phase 0 (repo scaffolding, uv-based
+          install tooling, CI) is done; Phase 1 (a sample "Reach" task carried end-to-end) is underway — see the
+          <a href="https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md">roadmap</a>.</p>
+
+          <h4>SO-ARM100 <span class="tag is-light">vendored, read-only</span></h4>
+          <p>The hardware vendor's repo (<a href="https://github.com/TheRobotStudio/SO-ARM100">TheRobotStudio</a>),
+          tracked as-is: URDF/MJCF robot descriptions consumed by <code>soarm_sdk</code>'s dashboard and
+          <code>m5teleop</code>'s IK solver, plus CAD, 3D-print notes, and BOM/assembly docs for the physical arm.</p>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Hardware stack</h2>
+        <div class="content">
+          <h5>Mechanical fabrication</h5>
+          <ul>
+            <li><strong>Printing cost:</strong> roughly €50 for a follower arm, €105 for a leader–follower pair
+            within the EU when outsourcing prints.</li>
+            <li><strong>Materials:</strong> PLA+ by default; PETG or nylon for higher temperature tolerance, &gt;35%
+            infill on load-bearing links.</li>
+            <li>Follow the official STL pack and BOM in the <a href="https://github.com/TheRobotStudio/SO-ARM100">SO-ARM100</a>
+            repo; check the LeRobot Discord for community upgrades (metal joint inserts, cable harnesses).</li>
+          </ul>
+          <h5>Actuation and electronics</h5>
+          <table class="table is-fullwidth">
+            <thead>
+              <tr><th>Component</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>FEETECH STS3215 servos</td>
+                <td>Follower arm: six identical servos (7.4 V/20 Nm or 12 V/30 Nm). Leader arm gears: 3× 1/147
+                (C046), 2× 1/191 (C044), 1× 1/345 (C001).</td>
+              </tr>
+              <tr>
+                <td>Servo bus adapter</td>
+                <td><a href="https://www.waveshare.com/bus-servo-adapter-a.htm">Waveshare Serial Bus Servo Driver Board</a>
+                with USB-UART bridge.</td>
+              </tr>
+              <tr>
+                <td>Debug tools</td>
+                <td>Official FEETECH Windows software, <a href="https://github.com/Kotakku/FT_SCServo_Debug_Qt">FT_SCServo_Debug_Qt</a>,
+                and <code>soarm_sdk</code>'s own Viser dashboard.</td>
+              </tr>
+              <tr>
+                <td>Power</td>
+                <td>7.4–12 V DC, sized for peak current (~6 A per arm). Match barrel jack polarity (5.5/2.1 mm or
+                5.5/2.5 mm).</td>
+              </tr>
+            </tbody>
+          </table>
+          <h5>Sensing and peripherals</h5>
+          <ul>
+            <li><strong>Cameras:</strong> UVC webcams, Intel RealSense D405/D435, or any RGB-D sensor supported via
+            <a href="https://huggingface.co/docs/lerobot/cameras">LeRobot camera adapters</a>; calibrate with this
+            workspace's own <code>camera_calibration</code> package.</li>
+            <li><strong>IMU:</strong> M5StickC/ESP32 boards via <code>imu_sdk</code>, mounted on the wrist for
+            inertial feedback in the teleop loop.</li>
+          </ul>
+          <h5>Compute, networking, and safety</h5>
+          <ul>
+            <li><strong>Control workstation:</strong> Ubuntu 22.04 LTS or macOS ≥12, 8+ CPU cores, 16 GB RAM; an
+            NVIDIA GPU if training diffusion/RL policies locally (required for <code>soarm_mjlab</code>'s CUDA path).</li>
+            <li><strong>Safety:</strong> hardware e-stop, safety relay, over-voltage protection; power servos down
+            before swapping end effectors.</li>
+          </ul>
+          <h5>Calibration and troubleshooting</h5>
+          <ul>
+            <li><strong>Homing vs. kinematics:</strong> LeRobot's calibration routine sets a consistent zero; for
+            accuracy-critical geometric calibration from motion capture or camera data, use the
+            <a href="https://github.com/thanhndv212/figaroh-plus">FIGAROH toolbox</a>.</li>
+            <li>Serial bus baud rate mismatches — confirm both controller and servos agree (some adapters top out
+            below 1 Mbps).</li>
+            <li>Mixed firmware revisions — update all servos to the same version before chaining them.</li>
+            <li>Power polarity mistakes — double-check barrel jack wiring before powering up.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Simulation &amp; learning</h2>
+        <div class="content">
+          <p>Two learning tracks are actively built in this workspace, both consuming the vendored
+          <code>SO-ARM100/Simulation</code> assets (URDF for FK, MJCF for physics):</p>
+          <ul>
+            <li><strong>Imitation learning (<code>soarm_lerobot</code>):</strong> record teleop demonstrations
+            through <code>m5teleop --record</code>, then train ACT or Diffusion Policy models on the resulting
+            LeRobotDataset.</li>
+            <li><strong>Reinforcement learning (<code>soarm_mjlab</code>, in progress):</strong> train in MuJoCo via
+            <a href="https://github.com/mujocolab/mjlab">mjlab</a>, following the manager-based config pattern from
+            <a href="https://github.com/unitreerobotics">unitree_rl_mjlab</a> — no C++ deployment stack or
+            terrain/locomotion machinery, since a 6-DOF arm's control loop already runs comfortably in Python at
+            ~50 Hz. Deploys through <code>soarm_sdk.RobotInterface</code> so trained policies drive sim and real
+            hardware identically.</li>
+          </ul>
+          <p>Beyond this workspace's own tracks, the broader SO-ARM ecosystem has useful options worth knowing about
+          if you want to go further in a given direction: <a href="https://moveit.picknik.ai/">MoveIt</a>/OMPL for
+          classical motion planning, <a href="https://github.com/JafarAbdi/ros2_so_arm100">ros2_so_arm100</a> for a
+          ROS2 description/control bring-up, <a href="https://wiki.seeedstudio.com/lerobot_so100m_isaacsim/">IsaacSim/IsaacLab</a>
+          for GPU-accelerated, photorealistic RL at larger scale.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Roadmap</h2>
+        <div class="content">
+          <p>The most active front right now is <code>soarm_mjlab</code>. See the full
+          <a href="https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md">roadmap document</a>
+          for details; current status:</p>
+          <ul>
+            <li><span class="tag is-success">done</span> Phase 0 — repo scaffolding: submodule setup, uv-based
+            install tooling (mjlab gates torch behind CPU/CUDA extras), CI (lint + test on the empty-but-structured
+            package).</li>
+            <li><span class="tag is-warning">in progress</span> Phase 1 — a sample "Reach" task carried end-to-end:
+            train → validate → sim-deploy → real hardware, with scaffolding built to hold a second and third task
+            without rework.</li>
+          </ul>
+          <p>This section will be updated as phases land — treat it as a live status snapshot, not a fixed plan.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Installation</h2>
+        <div class="content">
+          <p>Clone the workspace with all submodules:</p>
+          <pre><code>git clone --recurse-submodules https://github.com/thanhndv212/soarm-ws.git
+cd soarm-ws</code></pre>
+          <p>Each package installs independently — <code>pip install -e .</code> is the default:</p>
+          <pre><code>cd soarm_sdk && pip install -e .
+cd ../imu_sdk && pip install -e .
+cd ../m5teleop && pip install -e .
+cd ../soarm_lerobot && pip install -e .
+cd ../camera_calibration && pip install -e .</code></pre>
+          <p><code>soarm_mjlab</code> is the one exception — it uses <a href="https://docs.astral.sh/uv/">uv</a>
+          because <code>mjlab</code> gates <code>torch</code> behind mutually-exclusive CPU/CUDA extras routed to
+          different package indices, which plain pip can't express:</p>
+          <pre><code>cd soarm_mjlab
+make sync-cpu   # or: uv sync --extra cpu --group dev</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+
+        This website is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
