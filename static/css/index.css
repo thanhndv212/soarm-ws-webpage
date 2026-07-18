@@ -1,3 +1,7 @@
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Noto Sans', sans-serif;
 }
@@ -154,4 +158,32 @@ body {
 }
 #interpolation-image-wrapper img {
   border-radius: 5px;
+}
+
+.pipeline-step {
+  border-left: 3px solid #363636;
+  padding-left: 1.25rem;
+  margin: 0 0 2.25rem 0;
+}
+
+.pipeline-step h4 {
+  margin-bottom: 0.25rem !important;
+}
+
+.pipeline-step .stage-meta {
+  font-size: 0.85rem;
+  color: #777;
+  margin-bottom: 0.75rem;
+}
+
+.math-block {
+  background: #f5f5f5;
+  border-radius: 6px;
+  padding: 0.85rem 1.1rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0.9rem 0;
 }

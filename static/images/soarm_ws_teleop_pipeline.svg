@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="p-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a1a"/>
+    </marker>
+    <marker id="p-arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a8a8a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="470" fill="#ffffff"/>
+  <text x="500" y="26" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a1a">m5teleop: control loop, 50 Hz (dt = 20 ms)</text>
+
+  <!-- Stage 1: IMU -->
+  <g>
+    <rect x="15" y="60" width="170" height="92" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="100" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">1. IMU sample</text>
+    <text x="100" y="103" text-anchor="middle" font-size="10.5" fill="#444">imu_sdk · M5StickC</text>
+    <text x="100" y="118" text-anchor="middle" font-size="10.5" fill="#444">accel + gyro, JSON</text>
+    <text x="100" y="136" text-anchor="middle" font-size="10" fill="#777">~100 Hz serial</text>
+  </g>
+
+  <!-- Stage 2: ESKF -->
+  <g>
+    <rect x="210" y="60" width="170" height="92" rx="6" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="295" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">2. ESKF attitude</text>
+    <text x="295" y="103" text-anchor="middle" font-size="10.5" fill="#444">predict (gyro + bias)</text>
+    <text x="295" y="118" text-anchor="middle" font-size="10.5" fill="#444">update (gravity + ZARU)</text>
+    <text x="295" y="136" text-anchor="middle" font-size="10" fill="#777">→ q_imu, bias</text>
+  </g>
+
+  <!-- Stage 3: Cascade controller -->
+  <g>
+    <rect x="405" y="60" width="170" height="92" rx="6" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="490" y="80" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">3. Orientation</text>
+    <text x="490" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">controller</text>
+    <text x="490" y="114" text-anchor="middle" font-size="10.5" fill="#444">outer P + inner P (cascade)</text>
+    <text x="490" y="132" text-anchor="middle" font-size="10" fill="#777">→ twist ω (6-D)</text>
+  </g>
+
+  <!-- Stage 4: IK -->
+  <g>
+    <rect x="600" y="60" width="170" height="92" rx="6" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="685" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">4. Differential IK</text>
+    <text x="685" y="103" text-anchor="middle" font-size="10.5" fill="#444">pink + pinocchio</text>
+    <text x="685" y="118" text-anchor="middle" font-size="10.5" fill="#444">FrameTask + PostureTask QP</text>
+    <text x="685" y="136" text-anchor="middle" font-size="10" fill="#777">→ q (joint radians)</text>
+  </g>
+
+  <!-- Stage 5: Servo dispatch -->
+  <g>
+    <rect x="795" y="60" width="170" height="92" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="880" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">5. Servo dispatch</text>
+    <text x="880" y="103" text-anchor="middle" font-size="10.5" fill="#444">lerobot SO100Follower</text>
+    <text x="880" y="118" text-anchor="middle" font-size="10.5" fill="#444">degrees over serial bus</text>
+    <text x="880" y="136" text-anchor="middle" font-size="10" fill="#777">50 Hz command</text>
+  </g>
+
+  <!-- Forward arrows -->
+  <path d="M 185 106 L 206 106" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#p-arrow)"/>
+  <path d="M 380 106 L 401 106" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#p-arrow)"/>
+  <path d="M 575 106 L 596 106" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#p-arrow)"/>
+  <path d="M 770 106 L 791 106" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#p-arrow)"/>
+
+  <!-- Feedback: FK of EE pose back into controller -->
+  <path d="M 685 152 C 685 210, 490 210, 490 156" fill="none" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#p-arrow-gray)"/>
+  <text x="587" y="204" text-anchor="middle" font-size="10.5" fill="#777">q_ee — forward kinematics feedback (pinocchio)</text>
+
+  <!-- Logging bus -->
+  <line x1="100" y1="152" x2="100" y2="330" stroke="#c9c9c9" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <line x1="295" y1="152" x2="295" y2="330" stroke="#c9c9c9" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <line x1="490" y1="152" x2="490" y2="330" stroke="#c9c9c9" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <line x1="685" y1="152" x2="685" y2="330" stroke="#c9c9c9" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <line x1="880" y1="152" x2="880" y2="330" stroke="#c9c9c9" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <line x1="100" y1="330" x2="880" y2="330" stroke="#c9c9c9" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <path d="M 490 330 L 490 350" fill="none" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#p-arrow-gray)"/>
+
+  <g>
+    <rect x="380" y="358" width="220" height="46" rx="6" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3"/>
+    <text x="490" y="378" text-anchor="middle" font-size="12.5" font-weight="700" fill="#555">Rerun logging</text>
+    <text x="490" y="394" text-anchor="middle" font-size="10" fill="#777">every stage, every tick</text>
+  </g>
+
+  <!-- Optional recording branch off stage 5 -->
+  <path d="M 880 152 C 880 240, 880 320, 880 356" fill="none" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#p-arrow-gray)"/>
+  <g>
+    <rect x="785" y="358" width="180" height="46" rx="6" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.8" stroke-dasharray="5,3"/>
+    <text x="875" y="378" text-anchor="middle" font-size="12.5" font-weight="700" fill="#555">soarm_lerobot</text>
+    <text x="875" y="394" text-anchor="middle" font-size="10" fill="#777">optional, --record</text>
+  </g>
+
+  <text x="500" y="440" text-anchor="middle" font-size="11" fill="#888">Every stage runs inside the same 50 Hz loop in teleop.py — no separate processes, no message bus.</text>
+  <text x="500" y="456" text-anchor="middle" font-size="11" fill="#888">The dashed line is the one feedback path: the controller needs the arm's own current EE pose to compute its next error.</text>
+</svg>

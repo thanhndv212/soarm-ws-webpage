@@ -128,7 +128,38 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="toc">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-4">Contents</h2>
+        <div class="content">
+          <div class="columns">
+            <div class="column is-half">
+              <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#teleoperation">Teleoperation control loop, step by step</a></li>
+                <li><a href="#rl-pipeline">RL training pipeline, step by step</a></li>
+                <li><a href="#planning">Classical joint-space planning &amp; control</a></li>
+              </ul>
+            </div>
+            <div class="column is-half">
+              <ul>
+                <li><a href="#packages">Packages</a></li>
+                <li><a href="#hardware">Hardware stack</a></li>
+                <li><a href="#simulation-learning">Simulation &amp; learning</a></li>
+                <li><a href="#installation">Installation</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="overview">
   <div class="container is-max-desktop">
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
@@ -151,7 +182,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="architecture">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
@@ -160,15 +191,15 @@
           <p><img src="./static/images/soarm_ws_architecture.svg" alt="soarm-ws dependency graph" style="max-width:100%; height:auto;"></p>
           <p>
             <code>imu_sdk</code> and the vendored <code>SO-ARM100</code> robot description feed into
-            <code>m5teleop</code>, the integration point that runs the real-time teleoperation loop (IMU → EKF →
-            orientation control → IK → servo commands, all logged through Rerun). Recording is opt-in: pass
-            <code>--record</code> and <code>m5teleop</code> hands frames to <code>soarm_lerobot</code>, which buffers
-            episodes into a LeRobotDataset for ACT / Diffusion Policy training — with no import-level dependency back
-            the other way. <code>soarm_sdk</code> and <code>camera_calibration</code> are standalone: the former is a
-            parallel, self-contained Feetech servo SDK (used by its own calibration/dashboard tools, not currently
-            wired into the teleop loop), the latter a Rerun-based camera intrinsics/ArUco toolkit with no shared
-            dependencies at all. <code>soarm_mjlab</code> is the newest branch — RL training of SO-ARM100 in MuJoCo
-            via <a href="https://github.com/mujocolab/mjlab">mjlab</a>, still in progress, planned to deploy trained
+            <code>m5teleop</code>, the integration point that runs the real-time teleoperation loop — the five-stage
+            pipeline broken down step by step below. Recording is opt-in: pass <code>--record</code> and
+            <code>m5teleop</code> hands frames to <code>soarm_lerobot</code>, which buffers episodes into a
+            LeRobotDataset for ACT / Diffusion Policy training — with no import-level dependency back the other way.
+            <code>soarm_sdk</code> and <code>camera_calibration</code> are standalone: the former is a parallel,
+            self-contained Feetech servo SDK (used by its own calibration/dashboard tools, not currently wired into
+            the teleop loop), the latter a Rerun-based camera intrinsics/ArUco toolkit with no shared dependencies at
+            all. <code>soarm_mjlab</code> is the newest branch — RL training of SO-ARM100 in MuJoCo via
+            <a href="https://github.com/mujocolab/mjlab">mjlab</a>, still in progress, planned to deploy trained
             policies through the same <code>soarm_sdk.RobotInterface</code> that drives real hardware.
           </p>
         </div>
@@ -177,7 +208,429 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="teleoperation">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Teleoperation control loop, step by step</h2>
+        <div class="content">
+          <p>
+            Everything below runs inside <code>m5teleop</code>'s <code>teleop.py</code> main loop, on a single
+            thread, at a fixed <code>--hz</code> (default <strong>50 Hz</strong>, <em>dt</em> = 20 ms). There is no
+            message bus between stages — each tick reads the IMU queue, runs all five stages in order, and writes a
+            servo command before the next tick starts. That single-thread design is deliberate: it keeps tick-to-tick
+            jitter low and makes the whole loop traceable from one file.
+          </p>
+          <p><img src="./static/images/soarm_ws_teleop_pipeline.svg" alt="m5teleop control loop: IMU sampling, ESKF attitude estimation, cascade orientation controller, differential IK, servo dispatch" style="max-width:100%; height:auto;"></p>
+
+          <table class="table is-fullwidth">
+            <thead>
+              <tr><th>Stage</th><th>Module</th><th>Rate</th><th>Produces</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1. IMU sample</td><td><code>imu_sdk</code></td><td>~100 Hz</td><td>raw accel (g) + gyro (°/s)</td></tr>
+              <tr><td>2. ESKF attitude</td><td><code>m5teleop/imu_ekf.py</code></td><td>50 Hz</td><td>quaternion <code>q_imu</code>, gyro bias</td></tr>
+              <tr><td>3. Orientation controller</td><td><code>m5teleop/orient_controller.py</code></td><td>50 Hz</td><td>6-D twist <code>ω</code></td></tr>
+              <tr><td>4. Differential IK</td><td><code>m5teleop/ik_solver.py</code> (pink + pinocchio)</td><td>50 Hz</td><td>joint configuration <code>q</code></td></tr>
+              <tr><td>5. Servo dispatch</td><td>lerobot <code>SO100Follower</code></td><td>50 Hz</td><td>per-joint degree commands</td></tr>
+            </tbody>
+          </table>
+
+          <div class="pipeline-step">
+            <h4>1. IMU sampling</h4>
+            <p class="stage-meta"><code>imu_sdk</code> — a background serial thread, decoupled from the control loop</p>
+            <p>
+              An M5StickC/ESP32 board (MPU6050/6500/6886/9250) streams JSON accelerometer + gyroscope readings over
+              serial at roughly 100 Hz, with gyro bias calibration done on-device at boot. A reader thread parses
+              each line into an <code>ImuData</code> record and pushes it onto a queue; the 50 Hz control loop drains
+              it non-blocking, so a late or dropped IMU frame never stalls a tick — it just falls back to whatever
+              the EKF last held.
+            </p>
+            <pre><code>imu: ImuData | None = None
+try:
+    imu = imu_queue.get_nowait()
+except queue.Empty:
+    pass  # no new sample this tick — EKF simply isn't updated
+
+if imu is not None:
+    ekf.step(imu.ax, imu.ay, imu.az, imu.gx, imu.gy, imu.gz, dt)</code></pre>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>2. Attitude estimation — error-state Kalman filter</h4>
+            <p class="stage-meta"><code>m5teleop/imu_ekf.py</code> — <code>ImuEKF</code></p>
+            <p>
+              A raw gyro integral drifts, and a raw accelerometer is noisy and only observes gravity's direction —
+              never yaw. The ESKF fixes both: it tracks a <strong>nominal state</strong> (unit quaternion
+              <code>q̄</code>, gyro bias <code>b̄</code>) with a separate small-angle <strong>error state</strong>
+              <code>δx = [δθ, δb] ∈ ℝ⁶</code> and its 6×6 covariance <code>P</code>. Every tick is predict-then-update:
+            </p>
+            <div class="math-block">predict  (gyro integration, every tick)
+  q̄  ← q̄ ⊗ exp(½(ω_meas − b̄) dt)        b̄ ← b̄   (bias random walk)
+  F  = [[I − [ω̄×]dt,  −I·dt] ,  [0,  I]]           (6×6 error transition)
+  P  ← F P Fᵀ + Q
+
+update  (accelerometer → gravity direction, when |‖a‖ − 1| ≤ acc_gate)
+  ĝ  = R(q̄)ᵀ · [0, 0, 1]ᵀ                 H = [[ĝ×],  0]     (3×6)
+  ν  = a_meas_norm − ĝ                    S = H P Hᵀ + σ²_acc·I
+  K  = P Hᵀ S⁻¹                           δx = K ν
+  q̄  ← q̄ ⊗ [1, δθ/2]                      b̄ ← b̄ + δb        P ← (I − KH) P</div>
+            <p>
+              A third update — <strong>ZARU</strong> (zero angular-rate update) — fires whenever the raw gyro norm
+              drops below a threshold: at rest, <code>ω_meas ≈ bias</code> directly, which is what pins down the
+              yaw-axis bias that gravity alone can never observe (accelerometer updates are blind to rotation about
+              the gravity vector). All six noise/gate constants are tuned offline by <code>tune_ekf.py</code>
+              against logged sessions rather than hand-picked.
+            </p>
+            <pre><code>def step(self, ax, ay, az, gx_dps, gy_dps, gz_dps, dt):
+    omega = np.deg2rad([gx_dps, gy_dps, gz_dps]) - self._bias
+    self._predict(omega, dt)
+    self._update(np.array([ax, ay, az]))            # skipped under shock/free-fall
+    self._update_zaru(np.deg2rad([gx_dps, gy_dps, gz_dps]))
+    return self._q.copy()                            # q_imu, [w, x, y, z]</code></pre>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>3. Cascade orientation controller</h4>
+            <p class="stage-meta"><code>m5teleop/orient_controller.py</code> — <code>OrientationController</code></p>
+            <p>
+              Pressing the IMU's button A calls <code>zero_reset()</code>, which memorises the current
+              <code>q_imu_ref</code> and <code>q_ee_ref</code> — the mapping is coordinate-frame agnostic, so
+              whatever way you're holding the IMU at that instant becomes "zero." From then on the target EE
+              orientation is the EE reference rotated by however much the IMU has rotated since reset:
+            </p>
+            <div class="math-block">q_delta  = q_imu_ref⁻¹ ⊗ q_imu        (IMU rotation since zero_reset)
+q_target = q_ee_ref  ⊗ q_delta        (same relative rotation, applied to the EE)</div>
+            <p>
+              Two proportional loops turn that target into a joint-space-agnostic 6-D twist. The outer loop converts
+              orientation error to an angular-velocity setpoint using a <em>rotation vector</em> (axis × angle)
+              rather than Euler angles — it has no gimbal lock and stays well-defined for any error up to 180°:
+            </p>
+            <div class="math-block">outer (P):  q_err = q_target ⊗ q_ee⁻¹        err = rotvec(q_err) ∈ ℝ³
+            ω_set = clamp(Kp_outer · err,  max_omega)          Kp_outer = 2.5 /s
+
+inner (P):  ω_actual ≈ vee(Ṙ_ee · R_eeᵀ)     (finite-difference of consecutive EE rotations)
+            ω_cmd = clamp(ω_set + Kp_inner · (ω_set − ω_actual),  max_omega)    Kp_inner = 0.5
+
+twist = [0, 0, 0, ω_cmd]     (zero linear component — this loop only tracks orientation)</div>
+            <p>
+              The inner loop matters because the outer loop alone only reacts to <em>position</em> error — it has no
+              way to know the arm is already moving toward the target. Estimating the EE's actual angular velocity
+              from consecutive forward-kinematics rotations and feeding that back damps overshoot without needing a
+              second sensor.
+            </p>
+            <pre><code>if teleop_active and imu is not None:
+    q_imu = ekf.quaternion
+    q_ee  = _get_ee_quaternion()          # from IK solver's current FK
+    twist, orient_err = orient_ctrl.compute_twist(q_imu, q_ee, dt)
+else:
+    twist = zero_twist                    # teleop off → arm holds position</code></pre>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>4. Differential inverse kinematics</h4>
+            <p class="stage-meta"><code>m5teleop/ik_solver.py</code> — <code>IKSolver</code>, wrapping <a href="https://github.com/stephane-caron/pink">pink</a> + <a href="https://github.com/stack-of-tasks/pinocchio">pinocchio</a></p>
+            <p>
+              The twist is first integrated into a target end-effector pose, then solved as a weighted least-squares
+              QP over joint velocities — <code>pink</code>'s standard formulation, with two tasks:
+            </p>
+            <div class="math-block">target pose:  p_target = p_ee + v·dt              R_target = exp([ω·dt]×) · R_ee
+
+QP (per tick):  minimize Σ_task  w_task · ‖J_task v − ẋ_task‖²     over v ∈ ℝ⁶
+                subject to joint position / velocity limits
+                q ← q ⊕ v·dt                      (integrate on the configuration manifold)</div>
+            <p>
+              <code>FrameTask</code> pulls the EE toward <code>target_se3</code> (position cost 1.0, orientation cost
+              0.5); <code>PostureTask</code> (cost 1e-3) regularises the null space toward a neutral posture — with
+              only 5 revolute joints solving a 6-D pose task, the arm is at its kinematic limit, and this term is what
+              picks one specific solution instead of leaving the system under-constrained. The QP itself is solved
+              with <code>quadprog</code>.
+            </p>
+            <pre><code>def step(self, twist_world, dt):
+    current_ee = self.configuration.get_transform_frame_to_world(self._ee_frame)
+    new_translation = current_ee.translation + twist_world[:3] * dt
+    dR = pin.AngleAxis(norm(twist_world[3:] * dt), axis).toRotationMatrix()
+    self._ee_task.set_target(pin.SE3(dR @ current_ee.rotation, new_translation))
+
+    velocity = pink.solve_ik(self.configuration, [self._ee_task, self._posture_task],
+                              dt, solver="quadprog")
+    self.configuration.integrate_inplace(velocity, dt)
+    return np.array(self.configuration.q)     # joint radians</code></pre>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>5. Servo dispatch, logging, and (optional) recording</h4>
+            <p class="stage-meta">lerobot <code>SO100Follower</code> · Rerun · <code>soarm_lerobot</code></p>
+            <p>
+              The five revolute joints convert radians → degrees and go out over the servo bus through lerobot's
+              <code>SO100Follower</code>; the gripper is driven separately by a toggle bound to button B, not through
+              IK. Every stage's intermediate state — raw IMU, EKF quaternion and bias, orientation error, twist, EE
+              pose, joint configuration — is logged to Rerun on the same tick, so a session can be replayed and
+              inspected stage-by-stage after the fact. Passing <code>--record</code> adds one more branch: frames are
+              handed to <code>soarm_lerobot</code>'s <code>TeleopRecorder</code>, which detects episode boundaries and
+              writes LeRobotDataset episodes for later ACT / Diffusion Policy training.
+            </p>
+            <pre><code>deg_dict = ik.q_to_degrees(q_current)         # 5 joints, radians → degrees
+arm.send_joint_degrees(deg_dict)
+
+if viz is not None and imu is not None:
+    viz.log_all_with_tracking(imu=imu, twist=twist, q=q_current,
+                               ee_translation=ee_pose.translation,
+                               ee_rotation=ee_pose.rotation,
+                               ekf_euler=ekf.euler_deg, ekf_bias=ekf.bias_dps,
+                               orient_err=orient_err, ...)</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="rl-pipeline">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">RL training pipeline, step by step</h2>
+        <div class="content">
+          <p>
+            Teleoperation above is <em>reactive and human-driven</em>: a person supplies the target every tick, a
+            cascade PID tracks it. <code>soarm_mjlab</code> is this workspace's second way of moving the arm —
+            <em>reactive but learned</em>: a neural network policy, trained by trial and error in MuJoCo, maps
+            observations straight to joint targets with no explicit IK or controller in the loop at inference time.
+            The third way — <em>deliberative</em>, plan-then-execute — is covered in the next section.
+          </p>
+          <table class="table is-fullwidth">
+            <thead>
+              <tr><th>Pipeline</th><th>Decision maker</th><th>Computed</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Teleoperation</td><td>human + cascade PID</td><td>every tick, 50 Hz</td><td><span class="tag is-info">active</span></td></tr>
+              <tr><td>RL policy (this section)</td><td>PPO-trained network</td><td>every tick, sim @ training time</td><td><span class="tag is-warning">in progress</span></td></tr>
+              <tr><td>Classical planning (next section)</td><td>RRT + trajectory optimizer</td><td>once per goal, offline</td><td><span class="tag is-light">planned</span></td></tr>
+            </tbody>
+          </table>
+          <p>
+            <code>soarm_mjlab</code> follows the manager-based RL config pattern shared by Isaac Lab and
+            <a href="https://github.com/unitreerobotics">unitree_rl_mjlab</a>: a task is assembled from independent
+            observation/action/reward/termination/event <em>terms</em>, each a small typed function, rather than one
+            monolithic environment class. The whole loop below runs inside MuJoCo via
+            <a href="https://github.com/mujocolab/mjlab">mjlab</a>, trains with
+            <a href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a>'s PPO implementation, and — once a
+            checkpoint clears validation — is meant to deploy through the same
+            <code>soarm_sdk.RobotInterface</code> that <code>m5teleop</code> already drives real hardware with.
+          </p>
+          <p><img src="./static/images/soarm_ws_rl_pipeline.svg" alt="soarm_mjlab RL training loop: task setup, rollout, PPO update, checkpoint, planned sim2real deploy" style="max-width:100%; height:auto;"></p>
+
+          <div class="pipeline-step">
+            <h4>1. Task &amp; command setup</h4>
+            <p class="stage-meta"><code>soarm_mjlab/tasks/reach/reach_env_cfg.py</code>, <code>config/so_arm100/env_cfgs.py</code></p>
+            <p>
+              The Reach task's target isn't a hand-picked box — it's derived from the robot itself. A throwaway
+              MuJoCo model is compiled once, 20,000 random joint configurations are sampled within the arm's hard
+              limits, forward kinematics gives the end-effector position for each, and after discarding
+              near-ground samples the 10th–90th percentile box per axis becomes the command-sampling range: a
+              reliably reachable region instead of the full, mostly-unreachable-in-practice workspace envelope.
+              Every episode reset also applies domain randomization — joint positions offset ±0.1 rad from default,
+              zero initial velocity — so the policy never sees the exact same start state twice.
+            </p>
+            <pre><code>samples = rng.uniform(joint_ranges[:, 0], joint_ranges[:, 1], size=(20_000, ndof))
+for i in range(20_000):
+    data.qpos[:] = samples[i]
+    mujoco.mj_kinematics(model, data)
+    positions[i] = data.site_xpos[ee_site_id]
+
+positions = positions[positions[:, 2] > min_ground_clearance]
+lo, hi = np.percentile(positions, [10.0, 90.0], axis=0)   # → per-axis command range</code></pre>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>2. Manager-based MDP tick</h4>
+            <p class="stage-meta"><code>tasks/reach/mdp/{observations,rewards,terminations}.py</code></p>
+            <p>
+              Every simulation step, five managers run in order: observations are assembled, the action term applies
+              the policy's output, physics steps, rewards are summed from independent terms, and terminations are
+              checked. Observations come in two flavors — an <strong>actor</strong> group with injected uniform
+              noise (what the policy trains and infers on, since real sensors are noisy) and a clean
+              <strong>critic</strong> group (privileged, noise-free — the value function can use ground truth
+              because it never runs at deployment):
+            </p>
+            <table class="table is-fullwidth">
+              <thead><tr><th>Observation</th><th>Noise (actor)</th></tr></thead>
+              <tbody>
+                <tr><td><code>joint_pos_rel</code>, <code>joint_vel_rel</code></td><td>±0.01 rad, ±1.5 rad/s uniform</td></tr>
+                <tr><td><code>target_pose</code> (commanded EE pose)</td><td>none</td></tr>
+                <tr><td><code>ee_pose_error</code></td><td>±0.01 uniform</td></tr>
+                <tr><td><code>last_action</code></td><td>none</td></tr>
+              </tbody>
+            </table>
+            <p>The action term is a joint-position offset around each joint's default, and the reward is
+            deliberately the smallest set that produces a non-degenerate policy — orientation error is observed but
+            not yet scored (<code>orientation_weight=0.0</code>, raised only once orientation targets matter):</p>
+            <div class="math-block">r = −‖p_target − p_ee‖              (distance_to_target, position only today)
+    − 0.01 · ‖a_t − a_{t−1}‖²      (action_rate_l2 — discourage jerky actions)
+    − 10 · 1[near joint limit]      (joint_pos_limits penalty)
+
+episode ends on:  time_out  |  task_success (‖error‖ < 0.03 m for 10 steps)
+                 |  joint_limit_violated  |  ee_ground_collision (contact force > 10 N)</div>
+            <pre><code>def distance_to_target(env, command_name, asset_cfg):
+    ee_pos_b, _ = subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
+    position_error = torch.norm(command[:, :3] - ee_pos_b, dim=-1)
+    return -position_error          # reward is negative error, orientation_weight=0.0</code></pre>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>3. PPO update</h4>
+            <p class="stage-meta"><code>tasks/reach/config/so_arm100/rl_cfg.py</code> — <a href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a></p>
+            <p>
+              After collecting 24 steps of rollout per parallel environment, RSL-RL computes generalized advantage
+              estimates and updates a 3-layer (128, 128, 64) ELU actor-critic with the standard PPO clipped-surrogate
+              objective, 5 epochs over 4 minibatches per update:
+            </p>
+            <div class="math-block">Â_t = Σ_l (γλ)ˡ δ_{t+l}                  δ_t = r_t + γ V(s_{t+1}) − V(s_t)     (GAE, γ=0.99, λ=0.95)
+
+r_t(θ) = π_θ(a_t|s_t) / π_θ_old(a_t|s_t)
+L(θ)   = E_t[ min( r_t(θ) Â_t,  clip(r_t(θ), 1−ε, 1+ε) Â_t ) ]              (ε = clip_param = 0.2)</div>
+            <pre><code>algorithm=RslRlPpoAlgorithmCfg(
+    clip_param=0.2, entropy_coef=0.005, gamma=0.99, lam=0.95,
+    num_learning_epochs=5, num_mini_batches=4, learning_rate=1.0e-3,
+    schedule="adaptive", desired_kl=0.01, max_grad_norm=1.0,
+)
+# actor/critic: hidden_dims=(128, 128, 64), activation="elu", obs_normalization=True</code></pre>
+            <p>The learning rate adapts to keep the policy's KL divergence per update near <code>desired_kl</code>
+            rather than using a fixed schedule. CI's own training smoke tests run CPU-only (2 iterations, no GPU
+            in the loop); a real run — thousands of parallel envs, full iteration count — targets a rented GPU
+            instead, since none of this workspace's own dev machines has one. Weights &amp; Biases tracking is
+            on by default (reward curve, all episode termination/reward/metric scalars); see the
+            <a href="https://github.com/thanhndv212/soarm_mjlab/blob/main/docs/vast_ai_training.md">vast.ai
+            training guide</a> for instance sizing and the full walkthrough.</p>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>4. Validation ladder — before any checkpoint touches hardware</h4>
+            <p class="stage-meta">test pyramid, shaped around one constraint: real physics and GPU training can't run in CI</p>
+            <table class="table is-fullwidth">
+              <thead><tr><th>Layer</th><th>Checks</th><th>Runs where</th></tr></thead>
+              <tbody>
+                <tr><td>Unit tests</td><td>reward/observation/termination math, synthetic tensors, no MuJoCo</td><td>CI, every push</td></tr>
+                <tr><td>Config/asset validation</td><td>MJCF compiles, actuator regexes match joints, obs/action dims correct</td><td>CI, every push</td></tr>
+                <tr><td>Env smoke test</td><td><code>reset()</code> + a few <code>step()</code>s, no NaN/Inf</td><td>CI, every push</td></tr>
+                <tr><td>Training smoke test</td><td>full RSL-RL wrapper → PPO update path, 2 iterations, CPU</td><td>CI, every push</td></tr>
+                <tr><td>Full training run</td><td>real hyperparameters, thousands of envs, tensorboard</td><td>manual / GPU runner</td></tr>
+                <tr><td>Sim-replay validation</td><td>checkpoint through the <em>deploy</em> code path, not the training wrapper</td><td>manual</td></tr>
+                <tr><td>Real-hardware validation</td><td>torque-limited dry run → supervised run → unattended soak test</td><td>manual, physical arm</td></tr>
+              </tbody>
+            </table>
+            <p>A checkpoint is promoted to real hardware only after clearing a numeric bar decided before the run
+            (e.g. ≥90% <code>task_success</code> over 100 held-out seeds) — set in advance so the goalposts can't
+            move to match whatever the run happened to produce.</p>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>5. Sim2real deployment <span class="tag is-light">planned</span></h4>
+            <p class="stage-meta"><code>deploy/reach_policy_runner.py</code> — not yet written</p>
+            <p>
+              The deployment script is designed to be trivial by construction: it loads a promoted checkpoint and
+              calls the same <code>RobotInterface</code> protocol regardless of whether the concrete implementation
+              underneath is a MuJoCo <code>SimRobotInterface</code> or <code>soarm_sdk.ServoRobot</code> talking to
+              the real bus — one code path, no train/deploy consistency problem to solve because there's only one
+              implementation. Unlike a legged robot's balance controller, a 6-DOF arm's ~50 Hz loop already runs
+              comfortably in Python, so there's deliberately no C++ deployment stack to maintain in parallel.
+              Promotion already has a publish step ready ahead of this script:
+              <code>scripts/push_to_hub.py</code> pushes a promoted checkpoint (ONNX export, resolved configs,
+              a generated model card with training provenance) to a Hugging Face Hub model repo, so this
+              deployment script — or anyone else — can load one without needing access to the original
+              training run.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="planning">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Classical joint-space planning &amp; control <span class="tag is-light">planned</span></h2>
+        <div class="content">
+          <p>
+            The third way of moving the arm is <em>deliberative</em> rather than reactive: given a goal, compute a
+            full collision-free, time-optimal trajectory once, then track it open-loop with the simplest controller
+            that can follow it — no human operator after the goal is set, no learned policy, no MuJoCo/GPU training
+            involved at all. It's the natural fit for repeatable point-to-point moves — homing to a fixed pose,
+            waypoint playback, or a physically-grounded baseline to sanity-check the RL policy's learned trajectories
+            against on the same targets. <strong>Nothing in this section is implemented yet</strong> — soarm-ws has
+            no <a href="https://github.com/open-planning/roboplan">roboplan</a> dependency today; this is the design
+            it's written against, using status tags the same way the <a href="#packages">Packages</a> section below
+            does per package.
+          </p>
+          <p><img src="./static/images/soarm_ws_planning_pipeline.svg" alt="Planned classical planning pipeline: goal spec, RRT path search, TOPP-RA trajectory timing, joint PD tracking, servo bus" style="max-width:100%; height:auto;"></p>
+
+          <div class="pipeline-step">
+            <h4>1. Goal specification</h4>
+            <p class="stage-meta">planned — reuses <code>m5teleop</code>'s existing URDF/pinocchio model</p>
+            <p>
+              A goal is either a target joint configuration directly, or a Cartesian end-effector pose resolved to
+              one via <code>roboplan</code>'s IK solver — the same <code>so100.urdf</code> pinocchio model
+              <code>m5teleop/ik_solver.py</code> already loads for real-time differential IK, just consumed by a
+              different, offline solve rather than a 50 Hz velocity-level QP.
+            </p>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>2. Collision-free path search</h4>
+            <p class="stage-meta">planned — <code>roboplan</code>'s RRT planner, joint space ℝ⁵</p>
+            <p>
+              An RRT grows a tree from the start configuration, at each step sampling a random joint configuration,
+              steering the nearest tree node toward it by a bounded step, and keeping the new node only if the edge
+              is collision-free against <code>roboplan</code>'s pinocchio-backed geometry model (self-collision and
+              environment). The result is a valid but geometrically jagged sequence of waypoints — path existence,
+              not path quality:
+            </p>
+            <div class="math-block">q_rand ~ Uniform(C_free)
+q_near  = argmin_{q ∈ Tree}  ‖q − q_rand‖
+q_new   = q_near + min(η, ‖q_rand − q_near‖) · (q_rand − q_near) / ‖q_rand − q_near‖
+if CollisionFree(q_near → q_new):   Tree.add(q_new)</div>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>3. Trajectory timing</h4>
+            <p class="stage-meta">planned — <code>roboplan</code> wraps TOPP-RA</p>
+            <p>
+              The RRT path is a geometric curve with no notion of time. TOPP-RA parameterizes it by arc length
+              <code>s ∈ [0, 1]</code> and solves for the fastest <code>s(t)</code> that keeps every joint's velocity
+              and acceleration within limits along the whole path — a minimum-time trajectory on a fixed geometric
+              path, not a hand-tuned trapezoidal velocity profile:
+            </p>
+            <div class="math-block">path:        q(s),  s ∈ [0, 1]
+constraints: |q'(s) ṡ| ≤ v_max              |q''(s) ṡ² + q'(s) s̈| ≤ a_max
+solve:       minimize T  such that  s(0)=0, s(T)=1, constraints hold  ⇒  q_des(t), q̇_des(t)</div>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>4. Joint-space tracking</h4>
+            <p class="stage-meta">planned — simple position/velocity control, no task-space feedback</p>
+            <p>
+              Execution is deliberately the least sophisticated controller that can follow a pre-computed
+              trajectory — the same "smallest thing that works" philosophy already applied to the RL reward:
+              stream <code>q_des(t)</code> to each STS3215 servo's own onboard position PID (the same mechanism
+              <code>soarm_sdk</code>'s dashboard already uses for homing), optionally adding a joint-space
+              proportional term with velocity feedforward where the bus protocol supports it:
+            </p>
+            <div class="math-block">q_cmd(t) = q_des(t) + Kp · (q_des(t) − q_actual(t))          feedforward: q̇_des(t)</div>
+            <p>
+              No Jacobian, no orientation controller, no learned dynamics model — the trajectory already encodes
+              everything about the motion; the controller's only job is to not fall too far behind it.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="packages">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
@@ -215,8 +668,12 @@
           <h4>soarm_mjlab <span class="tag is-warning">in progress</span></h4>
           <p>RL training of SO-ARM100 in MuJoCo via <a href="https://github.com/mujocolab/mjlab">mjlab</a>, targeting
           deployment through <code>soarm_sdk.RobotInterface</code> — the same interface real hardware uses, so a
-          trained policy won't care whether it's driving sim or the physical arm. Phase 0 (repo scaffolding, uv-based
-          install tooling, CI) is done; Phase 1 (a sample "Reach" task carried end-to-end) is underway — see the
+          trained policy won't care whether it's driving sim or the physical arm. The "Reach" task end to end, a
+          CI-safe test pyramid (32 tests), and two-job CI/CD are done (Phases 0–3). Tooling for a real training run
+          is ready (Phase 4): a step-by-step <a href="https://github.com/thanhndv212/soarm_mjlab/blob/main/docs/vast_ai_training.md">rented-GPU
+          guide</a> with Weights &amp; Biases tracking, and <code>scripts/push_to_hub.py</code> to publish a
+          promoted checkpoint to the Hugging Face Hub — the run itself and sim2real deployment (Phase 5) are still
+          ahead. See the
           <a href="https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md">roadmap</a>.</p>
 
           <h4>SO-ARM100 <span class="tag is-light">vendored, read-only</span></h4>
@@ -230,7 +687,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="hardware">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
@@ -304,7 +761,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="simulation-learning">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
@@ -334,31 +791,7 @@
   </div>
 </section>
 
-<section class="section">
-  <div class="container is-max-desktop">
-    <div class="columns is-centered">
-      <div class="column is-four-fifths">
-        <h2 class="title is-3">Roadmap</h2>
-        <div class="content">
-          <p>The most active front right now is <code>soarm_mjlab</code>. See the full
-          <a href="https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md">roadmap document</a>
-          for details; current status:</p>
-          <ul>
-            <li><span class="tag is-success">done</span> Phase 0 — repo scaffolding: submodule setup, uv-based
-            install tooling (mjlab gates torch behind CPU/CUDA extras), CI (lint + test on the empty-but-structured
-            package).</li>
-            <li><span class="tag is-warning">in progress</span> Phase 1 — a sample "Reach" task carried end-to-end:
-            train → validate → sim-deploy → real hardware, with scaffolding built to hold a second and third task
-            without rework.</li>
-          </ul>
-          <p>This section will be updated as phases land — treat it as a live status snapshot, not a fixed plan.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="section">
+<section class="section" id="installation">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
