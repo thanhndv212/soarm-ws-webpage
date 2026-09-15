@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="t-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a1a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="470" fill="#ffffff"/>
+  <text x="500" y="26" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a1a">soarm_tamp: plan (container) → manifest → dashboard preview → safety-checked execution (host)</text>
+
+  <!-- Row 1: plan, in the HPP container -->
+  <g>
+    <rect x="20" y="60" width="280" height="115" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="160" y="83" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">1. Scene &amp; grasp semantics</text>
+    <text x="160" y="102" text-anchor="middle" font-size="10.5" fill="#444">config/cube_pick_place.yaml, geometry.py</text>
+    <text x="160" y="117" text-anchor="middle" font-size="10.5" fill="#444">25 mm cube, 5-DOF masked handle</text>
+    <text x="160" y="132" text-anchor="middle" font-size="10.5" fill="#444">(frees rotation about the approach axis)</text>
+    <text x="160" y="153" text-anchor="middle" font-size="10" fill="#777">17 of 20 top-down targets reachable</text>
+  </g>
+
+  <g>
+    <rect x="360" y="60" width="280" height="115" rx="6" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="500" y="83" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">2. HPP constraint-graph plan</text>
+    <text x="500" y="102" text-anchor="middle" font-size="10.5" fill="#444">long_tamp GraspSequencePlanner</text>
+    <text x="500" y="117" text-anchor="middle" font-size="10.5" fill="#444">.plan_loop() over the phase graph —</text>
+    <text x="500" y="132" text-anchor="middle" font-size="10.5" fill="#444">projection, sampling planner, optimizers</text>
+    <text x="500" y="153" text-anchor="middle" font-size="10" fill="#777">+ time parameterization (not a flat rate)</text>
+  </g>
+
+  <g>
+    <rect x="700" y="60" width="280" height="115" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="840" y="83" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">3. Waypoint manifest</text>
+    <text x="840" y="102" text-anchor="middle" font-size="10.5" fill="#444"><tspan font-family="monospace">runs/&lt;name&gt;/manifest.json</tspan></text>
+    <text x="840" y="120" text-anchor="middle" font-size="10.5" fill="#444">the only channel: plan and execute</text>
+    <text x="840" y="135" text-anchor="middle" font-size="10.5" fill="#444">deliberately never share a process</text>
+    <text x="840" y="156" text-anchor="middle" font-size="10" fill="#777">pyhpp only exists in the container</text>
+  </g>
+
+  <!-- forward arrows, row 1 -->
+  <path d="M 300 117 L 356 117" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#t-arrow)"/>
+  <path d="M 640 117 L 696 117" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#t-arrow)"/>
+
+  <!-- container -> host -->
+  <path d="M 840 175 L 840 232" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#t-arrow)"/>
+  <text x="905" y="207" text-anchor="middle" font-size="10" fill="#555">bind-mounted</text>
+  <text x="905" y="220" text-anchor="middle" font-size="10" fill="#555">file, container → host</text>
+
+  <path d="M 700 262 L 300 262" fill="none" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="3,3"/>
+  <path d="M 840 232 L 840 262 L 300 262" fill="none" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="3,3" marker-end="url(#t-arrow)"/>
+
+  <!-- Row 2: execute, on the host -->
+  <g>
+    <rect x="20" y="262" width="280" height="115" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="160" y="285" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">4. Dashboard preview</text>
+    <text x="160" y="304" text-anchor="middle" font-size="10.5" fill="#444">replay.py / Viser 3-D mirror</text>
+    <text x="160" y="319" text-anchor="middle" font-size="10.5" fill="#444">ghost mesh, independent of the live</text>
+    <text x="160" y="334" text-anchor="middle" font-size="10.5" fill="#444">mirror + a persistent planned-path trail</text>
+    <text x="160" y="355" text-anchor="middle" font-size="10" fill="#777">preview no longer fights the real arm</text>
+  </g>
+
+  <g>
+    <rect x="360" y="262" width="280" height="115" rx="6" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="500" y="285" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">5. Safety preflight</text>
+    <text x="500" y="304" text-anchor="middle" font-size="10.5" fill="#444">servo EEPROM angle limits, read live</text>
+    <text x="500" y="319" text-anchor="middle" font-size="10.5" fill="#444">manifest waypoints checked against them</text>
+    <text x="500" y="334" text-anchor="middle" font-size="10.5" fill="#444">before a single command is sent</text>
+    <text x="500" y="355" text-anchor="middle" font-size="10" fill="#777">refuses to run on any disagreement</text>
+  </g>
+
+  <g>
+    <rect x="700" y="262" width="280" height="115" rx="6" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="840" y="285" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a1a">6. Streamed execution</text>
+    <text x="840" y="304" text-anchor="middle" font-size="10.5" fill="#444">resample + velocity feedforward,</text>
+    <text x="840" y="319" text-anchor="middle" font-size="10.5" fill="#444">sync/settle-at-speed, gripper-hold</text>
+    <text x="840" y="334" text-anchor="middle" font-size="10.5" fill="#444">across segments, subprocess isolated</text>
+    <text x="840" y="355" text-anchor="middle" font-size="10" fill="#777">aborts past 3× sync tolerance of drift</text>
+  </g>
+
+  <!-- forward arrows, row 2 -->
+  <path d="M 300 319 L 356 319" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#t-arrow)"/>
+  <path d="M 640 319 L 696 319" fill="none" stroke="#1a1a1a" stroke-width="1.8" marker-end="url(#t-arrow)"/>
+
+  <text x="500" y="405" text-anchor="middle" font-size="11" fill="#888">Verified on hardware: TCP within 7.0 mm / 2.2° of the commanded pose, 0 of 57 waypoints stopped to wait.</text>
+  <text x="500" y="423" text-anchor="middle" font-size="11" fill="#888">Every box above shipped and runs on the physical SO-101 — nothing in this diagram is a plan for later.</text>
+  <text x="500" y="450" text-anchor="middle" font-size="10" fill="#aaa">dashed = data crossing the container/host process boundary; solid = forward pipeline flow</text>
+</svg>
