@@ -75,4 +75,44 @@ $(document).ready(function() {
 
     bulmaSlider.attach();
 
+    initSidebarScrollspy();
+
 })
+
+// Highlights whichever section is currently in view in the fixed sidebar
+// TOC. Plain IntersectionObserver rather than a scroll listener — no
+// per-frame math, and it keeps working correctly regardless of how tall
+// any given section turns out to be.
+function initSidebarScrollspy() {
+  var links = document.querySelectorAll('#sidebar-toc a[href^="#"]');
+  if (!links.length) return;
+
+  var linkByTargetId = {};
+  var sections = [];
+  links.forEach(function(link) {
+    var id = link.getAttribute('href').slice(1);
+    var section = document.getElementById(id);
+    if (section) {
+      linkByTargetId[id] = link;
+      sections.push(section);
+    }
+  });
+
+  var setActive = function(id) {
+    links.forEach(function(link) { link.classList.remove('is-active'); });
+    var active = linkByTargetId[id];
+    if (active) active.classList.add('is-active');
+  };
+
+  var observer = new IntersectionObserver(function(entries) {
+    // Prefer the entry nearest the top of the viewport among those
+    // currently intersecting, so scrolling past a short section doesn't
+    // leave the previous, taller one marked active.
+    var visible = entries.filter(function(e) { return e.isIntersecting; });
+    if (!visible.length) return;
+    visible.sort(function(a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+    setActive(visible[0].target.id);
+  }, { rootMargin: '-96px 0px -70% 0px', threshold: 0 });
+
+  sections.forEach(function(section) { observer.observe(section); });
+}

@@ -176,6 +176,62 @@ body {
   margin-bottom: 0.75rem;
 }
 
+/* Sticky sidebar table of contents. The page's own content column is
+   centered and capped at 960px (.container.is-max-desktop), so this only
+   has room to sit beside it without overlapping on genuinely wide
+   viewports — the inline #toc section below the hero remains the table of
+   contents everywhere narrower than that. */
+#sidebar-toc {
+  display: none;
+}
+
+@media screen and (min-width: 1350px) {
+  #sidebar-toc {
+    display: block;
+    position: fixed;
+    top: 96px;
+    left: 24px;
+    width: 190px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    z-index: 20;
+  }
+
+  #sidebar-toc .sidebar-title {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.7rem;
+    color: #999;
+    margin: 0 0 0.6rem 0.65rem;
+  }
+
+  #sidebar-toc a {
+    display: block;
+    padding: 0.22rem 0 0.22rem 0.65rem;
+    color: #555;
+    border-left: 2px solid #e5e5e5;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  #sidebar-toc a:hover {
+    color: #1a1a1a;
+  }
+
+  #sidebar-toc a.is-active {
+    color: #1a1a1a;
+    font-weight: 700;
+    border-left-color: #1a1a1a;
+  }
+
+  /* The fixed sidebar covers the same ground; no need to say it twice. */
+  #toc {
+    display: none;
+  }
+}
+
 .math-block {
   background: #f5f5f5;
   border-radius: 6px;
