@@ -176,27 +176,39 @@ body {
   margin-bottom: 0.75rem;
 }
 
-/* Sticky sidebar table of contents. The page's own content column is
-   centered and capped at 960px (.container.is-max-desktop), so this only
-   has room to sit beside it without overlapping on genuinely wide
-   viewports — the inline #toc section below the hero remains the table of
-   contents everywhere narrower than that. */
+/* Sticky sidebar table of contents: a real flex column next to the page
+   content, not an element floating in whatever margin happens to be left
+   outside the centered 960px container — that only ever showed up on
+   unusually wide windows. Bulma's .container is fluid up to its max-width,
+   so .page-content just gets narrower once the sidebar's column is taken
+   out of the available width; nothing here forces a minimum viewport. */
 #sidebar-toc {
   display: none;
 }
 
-@media screen and (min-width: 1350px) {
+@media screen and (min-width: 1024px) {
+  .page-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding: 0 1rem;
+  }
+
+  .page-content {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   #sidebar-toc {
     display: block;
-    position: fixed;
+    position: sticky;
     top: 96px;
-    left: 24px;
+    flex: 0 0 190px;
     width: 190px;
     max-height: calc(100vh - 120px);
     overflow-y: auto;
     font-size: 0.82rem;
     line-height: 1.5;
-    z-index: 20;
   }
 
   #sidebar-toc .sidebar-title {
@@ -226,7 +238,7 @@ body {
     border-left-color: #1a1a1a;
   }
 
-  /* The fixed sidebar covers the same ground; no need to say it twice. */
+  /* The sticky sidebar covers the same ground; no need to say it twice. */
   #toc {
     display: none;
   }
