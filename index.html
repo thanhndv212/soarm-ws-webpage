@@ -2,8 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="soarm-ws: an open-source, modular full-stack workspace for the SO-ARM100 manipulator — servo/IMU SDKs, teleoperation, imitation learning, camera calibration, and MuJoCo-based RL training.">
-  <meta name="keywords" content="SO-ARM100, manipulator, robotics, teleoperation, imitation learning, reinforcement learning, LeRobot, mjlab, open source">
+  <meta name="description" content="soarm-ws: an open-source, modular full-stack workspace for the SO-ARM100 manipulator — servo/IMU SDKs, teleoperation, imitation learning, camera calibration, task-and-motion planning, and MuJoCo-based RL training.">
+  <meta name="keywords" content="SO-ARM100, manipulator, robotics, teleoperation, imitation learning, reinforcement learning, task-and-motion planning, TAMP, HPP, LeRobot, mjlab, open source">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>soarm-ws: A Full-Stack Workspace for SO-ARM100 Manipulator Research</title>
 
@@ -144,7 +144,7 @@
                 <li><a href="#architecture">Architecture</a></li>
                 <li><a href="#teleoperation">Teleoperation control loop, step by step</a></li>
                 <li><a href="#rl-pipeline">RL training pipeline, step by step</a></li>
-                <li><a href="#planning">Classical joint-space planning &amp; control</a></li>
+                <li><a href="#tamp">TAMP planning &amp; execution, step by step</a></li>
               </ul>
             </div>
             <div class="column is-half">
@@ -198,12 +198,17 @@
             pipeline broken down step by step below. Recording is opt-in: pass <code>--record</code> and
             <code>m5teleop</code> hands frames to <code>soarm_lerobot</code>, which buffers episodes into a
             LeRobotDataset for ACT / Diffusion Policy training — with no import-level dependency back the other way.
-            <code>soarm_sdk</code> and <code>camera_calibration</code> are standalone: the former is a parallel,
-            self-contained Feetech servo SDK (used by its own calibration/dashboard tools, not currently wired into
-            the teleop loop), the latter a Rerun-based camera intrinsics/ArUco toolkit with no shared dependencies at
-            all. <code>soarm_mjlab</code> is the newest branch — RL training of SO-ARM100 in MuJoCo via
-            <a href="https://github.com/mujocolab/mjlab">mjlab</a>, still in progress, planned to deploy trained
-            policies through the same <code>soarm_sdk.RobotInterface</code> that drives real hardware.
+            <code>soarm_sdk</code> and <code>camera_calibration</code> are otherwise standalone: the former is a
+            parallel, self-contained Feetech servo SDK (used by its own calibration/dashboard tools, not currently
+            wired into the teleop loop), the latter a Rerun-based camera intrinsics/ArUco toolkit with no shared
+            dependencies at all. <code>soarm_tamp</code> is the third way of moving the arm — deliberative,
+            plan-then-execute task-and-motion planning on top of <code>long_tamp</code>/HPP, executing through
+            <code>soarm_sdk</code>'s own <code>ServoRobot</code> and calibration layer rather than lerobot's
+            follower, with planning (inside an HPP container) and execution (on the host) deliberately kept in
+            separate processes joined only by a waypoint manifest on disk. <code>soarm_mjlab</code> is the newest
+            branch — RL training of SO-ARM100 in MuJoCo via <a href="https://github.com/mujocolab/mjlab">mjlab</a>,
+            still in progress, planned to deploy trained policies through the same
+            <code>soarm_sdk.RobotInterface</code> that drives real hardware.
           </p>
         </div>
       </div>
@@ -400,7 +405,8 @@ if viz is not None and imu is not None:
             cascade PID tracks it. <code>soarm_mjlab</code> is this workspace's second way of moving the arm —
             <em>reactive but learned</em>: a neural network policy, trained by trial and error in MuJoCo, maps
             observations straight to joint targets with no explicit IK or controller in the loop at inference time.
-            The third way — <em>deliberative</em>, plan-then-execute — is covered in the next section.
+            The third way — <em>deliberative</em>, plan-then-execute task-and-motion planning — is covered in the
+            next section, and unlike this one is already running on the physical arm.
           </p>
           <table class="table is-fullwidth">
             <thead>
@@ -409,7 +415,7 @@ if viz is not None and imu is not None:
             <tbody>
               <tr><td>Teleoperation</td><td>human + cascade PID</td><td>every tick, 50 Hz</td><td><span class="tag is-info">active</span></td></tr>
               <tr><td>RL policy (this section)</td><td>PPO-trained network</td><td>every tick, sim @ training time</td><td><span class="tag is-warning">in progress</span></td></tr>
-              <tr><td>Classical planning (next section)</td><td>RRT + trajectory optimizer</td><td>once per goal, offline</td><td><span class="tag is-light">planned</span></td></tr>
+              <tr><td>TAMP planning (next section)</td><td>HPP constraint-graph planner</td><td>once per goal, offline</td><td><span class="tag is-success">on hardware</span></td></tr>
             </tbody>
           </table>
           <p>
@@ -551,81 +557,172 @@ L(θ)   = E_t[ min( r_t(θ) Â_t,  clip(r_t(θ), 1−ε, 1+ε) Â_t ) ]         
   </div>
 </section>
 
-<section class="section" id="planning">
+<section class="section" id="tamp">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Classical joint-space planning &amp; control <span class="tag is-light">planned</span></h2>
+        <h2 class="title is-3">TAMP planning &amp; execution, step by step <span class="tag is-success">on hardware</span></h2>
         <div class="content">
           <p>
             The third way of moving the arm is <em>deliberative</em> rather than reactive: given a goal, compute a
-            full collision-free, time-optimal trajectory once, then track it open-loop with the simplest controller
-            that can follow it — no human operator after the goal is set, no learned policy, no MuJoCo/GPU training
-            involved at all. It's the natural fit for repeatable point-to-point moves — homing to a fixed pose,
-            waypoint playback, or a physically-grounded baseline to sanity-check the RL policy's learned trajectories
-            against on the same targets. <strong>Nothing in this section is implemented yet</strong> — soarm-ws has
-            no <a href="https://github.com/open-planning/roboplan">roboplan</a> dependency today; this is the design
-            it's written against, using status tags the same way the <a href="#packages">Packages</a> section below
-            does per package.
+            full collision-checked trajectory once, then execute it open-loop with the machinery needed to actually
+            get it onto a real servo bus — no human operator after the goal is set, no learned policy, no MuJoCo/GPU
+            training involved at all. <code>soarm_tamp</code> plans with <a
+            href="https://github.com/thanhndv212/long-tamp">long_tamp</a>, a constraint-graph task-and-motion
+            planner built on <a href="https://github.com/humanoid-path-planner">HPP</a> (the Humanoid Path Planner),
+            and is deliberately split across a process boundary: <code>pyhpp</code> exists only inside an HPP
+            container, the servos exist only on the host, and the only thing that crosses between them is a
+            waypoint manifest on disk. Unlike the RL track above, this one has already put the physical arm through
+            a full pick-and-place, and the numbers below are measured on that arm, not simulated.
           </p>
-          <p><img src="./static/images/soarm_ws_planning_pipeline.svg" alt="Planned classical planning pipeline: goal spec, RRT path search, TOPP-RA trajectory timing, joint PD tracking, servo bus" style="max-width:100%; height:auto;"></p>
+          <table class="table is-fullwidth">
+            <thead>
+              <tr><th>Stage</th><th>State</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Scene, grasp semantics, masked 5-DOF handle</td><td><span class="tag is-success">working</span></td></tr>
+              <tr><td>Planning — 3 phases, 6 segments, 0 seam violations</td><td><span class="tag is-success">working</span></td></tr>
+              <tr><td>Trajectory within servo-reachable bounds</td><td><span class="tag is-success">verified, 0 clamped</span></td></tr>
+              <tr><td>TCP-pose reach (<code>plan_tcp.py</code>)</td><td><span class="tag is-success">0.0000 mm goal error</span></td></tr>
+              <tr><td>Live Viser mirror of a run (<code>replay.py --follow</code>)</td><td><span class="tag is-success">working</span></td></tr>
+              <tr><td><strong>Run on hardware</strong></td><td><span class="tag is-success"><strong>TCP within 7.0 mm / 2.2°</strong></span></td></tr>
+              <tr><td>Joint sign calibration</td><td><span class="tag is-success">validated on the arm</span></td></tr>
+            </tbody>
+          </table>
+          <p>
+            The first live attempt drove the hand into the table — the plan was fine, every waypoint HPP certified
+            collision-free, but streaming waypoints at a fixed rate is not the same thing as making the arm follow
+            them. Stages 5 and 6 below exist because of that run.
+          </p>
+          <p><img src="./static/images/soarm_ws_tamp_pipeline.svg" alt="soarm_tamp pipeline: scene and grasp semantics, HPP constraint-graph planning, waypoint manifest, dashboard preview with a ghost mesh, servo-limit safety preflight, streamed execution with sync and gripper-hold handling" style="max-width:100%; height:auto;"></p>
 
           <div class="pipeline-step">
-            <h4>1. Goal specification</h4>
-            <p class="stage-meta">planned — reuses <code>m5teleop</code>'s existing URDF/pinocchio model</p>
+            <h4>1. Scene &amp; grasp semantics</h4>
+            <p class="stage-meta"><code>config/cube_pick_place.yaml</code>, <code>geometry.py</code> — container</p>
             <p>
-              A goal is either a target joint configuration directly, or a Cartesian end-effector pose resolved to
-              one via <code>roboplan</code>'s IK solver — the same <code>so100.urdf</code> pinocchio model
-              <code>m5teleop/ik_solver.py</code> already loads for real-time differential IK, just consumed by a
-              different, offline solve rather than a 50 Hz velocity-level QP.
+              The task: pick a cube from A and place it at B. The SO-101 has five arm joints, so a full 6-DOF grasp
+              constraint is six equations on five unknowns — solvable only where the system happens to be
+              degenerate. The cube's handle carries <code>&lt;mask&gt;1 1 1 1 1 0&lt;/mask&gt;</code>, freeing
+              rotation about the approach axis — the one DOF a parallel-jaw grip on a cube never cares about. A
+              600k-sample sweep found ~170° of usable yaw at every candidate spot, so this costs nothing in
+              reachability. The cube size (25 mm) isn't arbitrary either — the jaw has 29 mm of clearance to
+              approach it and 19.8 mm of room to squeeze past contact, measured against the gripper's own opening
+              curve.
             </p>
           </div>
 
           <div class="pipeline-step">
-            <h4>2. Collision-free path search</h4>
-            <p class="stage-meta">planned — <code>roboplan</code>'s RRT planner, joint space ℝ⁵</p>
+            <h4>2. HPP constraint-graph planning</h4>
+            <p class="stage-meta"><code>plan.py</code>, <code>plan_tcp.py</code> — <code>GraspSequencePlanner.plan_loop()</code>, container</p>
             <p>
-              An RRT grows a tree from the start configuration, at each step sampling a random joint configuration,
-              steering the nearest tree node toward it by a bounded step, and keeping the new node only if the edge
-              is collision-free against <code>roboplan</code>'s pinocchio-backed geometry model (self-collision and
-              environment). The result is a valid but geometrically jagged sequence of waypoints — path existence,
-              not path quality:
+              A phase graph is built scoped to whichever grasps are currently held, and each edge is planned through
+              the library rather than as a raw straight line: projection onto the edge's constraint leaf, a direct
+              path tried first with a sampling planner behind it, the YAML's own optimizer stack, and time
+              parameterization. The difference between going through the graph and a raw direct path is visible in
+              the manifest for the exact same motion:
             </p>
-            <div class="math-block">q_rand ~ Uniform(C_free)
-q_near  = argmin_{q ∈ Tree}  ‖q − q_rand‖
-q_new   = q_near + min(η, ‖q_rand − q_near‖) · (q_rand − q_near) / ‖q_rand − q_near‖
-if CollisionFree(q_near → q_new):   Tree.add(q_new)</div>
+            <table class="table is-fullwidth">
+              <thead><tr><th></th><th>waypoints</th><th>per-step joint delta</th></tr></thead>
+              <tbody>
+                <tr><td>raw <code>ps.directPath</code></td><td>8 over 0.3146 rad</td><td>0.157 rad × 7 — constant speed, instant start/stop</td></tr>
+                <tr><td><code>plan_loop</code></td><td>28 over 1.3477 s</td><td>0.000 → 0.114 → 0.000 rad — a symmetric ramp</td></tr>
+              </tbody>
+            </table>
+            <p>
+              A time-parameterized segment is marked as such in the manifest, and <code>execute.py</code> replays
+              its waypoint spacing as time rather than flattening it to a constant rate — measured on the same plan:
+              1.4 s replaying the real profile against 2.5 s flattened. Coverage across a top-down reachability sweep
+              is 17 of 20 targets; the three failures are all self-collisions (<code>shoulder_link</code> vs
+              <code>gripper_link</code>) at the tight end of the reach envelope, not a missing planner fallback.
+            </p>
           </div>
 
           <div class="pipeline-step">
-            <h4>3. Trajectory timing</h4>
-            <p class="stage-meta">planned — <code>roboplan</code> wraps TOPP-RA</p>
+            <h4>3. Waypoint manifest</h4>
+            <p class="stage-meta"><code>runs/&lt;name&gt;/manifest.json</code> — the only channel between container and host</p>
             <p>
-              The RRT path is a geometric curve with no notion of time. TOPP-RA parameterizes it by arc length
-              <code>s ∈ [0, 1]</code> and solves for the fastest <code>s(t)</code> that keeps every joint's velocity
-              and acceleration within limits along the whole path — a minimum-time trajectory on a fixed geometric
-              path, not a hand-tuned trapezoidal velocity profile:
+              Planning and execution deliberately never share a process: <code>pyhpp</code> exists only inside the
+              HPP container, the servos exist only on the host. The container bind-mounts the workspace, so a plain
+              file is the whole contract in both directions — the same shape is reused for the live command trace in
+              stage 4, rather than inventing a second channel for it.
             </p>
-            <div class="math-block">path:        q(s),  s ∈ [0, 1]
-constraints: |q'(s) ṡ| ≤ v_max              |q''(s) ṡ² + q'(s) s̈| ≤ a_max
-solve:       minimize T  such that  s(0)=0, s(T)=1, constraints hold  ⇒  q_des(t), q̇_des(t)</div>
           </div>
 
           <div class="pipeline-step">
-            <h4>4. Joint-space tracking</h4>
-            <p class="stage-meta">planned — simple position/velocity control, no task-space feedback</p>
+            <h4>4. Dashboard preview</h4>
+            <p class="stage-meta"><code>replay.py</code>, the TAMP dashboard's Plan/TCP tabs — Viser, host or container</p>
             <p>
-              Execution is deliberately the least sophisticated controller that can follow a pre-computed
-              trajectory — the same "smallest thing that works" philosophy already applied to the RL reward:
-              stream <code>q_des(t)</code> to each STS3215 servo's own onboard position PID (the same mechanism
-              <code>soarm_sdk</code>'s dashboard already uses for homing), optionally adding a joint-space
-              proportional term with velocity feedforward where the bus protocol supports it:
+              <code>execute.py</code> appends every command it issues to <code>&lt;run&gt;/live.jsonl</code>, and a
+              follower tails that file to mirror a run live, rendering only the newest command of each batch so the
+              picture stays on the arm instead of drifting behind it. The dashboard's own preview used to fight that
+              live mirror for the same mesh — playing back a planned path and watching the real arm move used to
+              draw both through the same callback, so one visibly stole the other's pixels. A second, independent
+              ghost mesh now carries preview playback, and a persistent Catmull-Rom trail through the gripper frame
+              is drawn the moment a plan succeeds — a static "where was this supposed to go" reference that survives
+              past whatever the ghost or live mirror do next.
             </p>
-            <div class="math-block">q_cmd(t) = q_des(t) + Kp · (q_des(t) − q_actual(t))          feedforward: q̇_des(t)</div>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>5. Safety preflight</h4>
+            <p class="stage-meta"><code>conventions.phantom_range()</code>, <code>waypoints_beyond_servo_limits()</code> — host, before a single command is sent</p>
             <p>
-              No Jacobian, no orientation controller, no learned dynamics model — the trajectory already encodes
-              everything about the motion; the controller's only job is to not fall too far behind it.
+              Every bound above this point — the calibration's travel, the planner's YAML — is a belief derived from
+              the calibration file. None of them ever asked the servo itself, which carries its own
+              <code>MIN/MAX_ANGLE_LIMIT</code> in EEPROM and enforces it beneath everything software can see. That
+              gap is not theoretical: it let a real plan ask <code>wrist_flex</code> to move 0.41 rad past what its
+              servo would actually allow. Nothing errors when that happens — no status flag, no current draw, the
+              joint just stops contributing to the trajectory while every other joint keeps going, which looks
+              exactly like a badly-tuned, stuttering arm. <code>execute.py</code> now reads every servo's live
+              EEPROM limits and checks the manifest's own waypoints against them before streaming anything, and
+              refuses the run — naming the joint and the overshoot — the moment either the calibration or the
+              connect-time check disagrees with what the servo reports today.
             </p>
+          </div>
+
+          <div class="pipeline-step">
+            <h4>6. Streamed execution</h4>
+            <p class="stage-meta"><code>execute.py</code> — host, now a subprocess of the dashboard rather than a background thread</p>
+            <p>
+              Four knobs, previously conflated into one, now do four separate jobs — keeping the sync tolerance
+              above the sampling step means the arm never has to stop dead, it always chases a target a little ahead
+              of it:
+            </p>
+            <table class="table is-fullwidth">
+              <thead><tr><th>knob</th><th>job</th><th>default</th></tr></thead>
+              <tbody>
+                <tr><td><code>--max-step</code></td><td>how finely the path is sampled (fidelity)</td><td>0.02 rad</td></tr>
+                <tr><td><code>--servo-clamp</code></td><td>how far the command may <em>lead</em> the measurement</td><td>0.10 rad</td></tr>
+                <tr><td><code>--sync-tol</code></td><td>how far the arm may trail the stream</td><td>0.08 rad</td></tr>
+                <tr><td><code>--speed-scale</code></td><td>GOAL_SPEED as a multiple of the plan's own velocity</td><td>1.5</td></tr>
+              </tbody>
+            </table>
+            <p>
+              Measured across four hardware runs of the same motion, settling at speed rather than creeping closed
+              the last error a slow re-command cannot break stiction on: <strong>0 of 57 waypoints stopped to
+              wait, settled to 0.034 rad, 9.5 mm TCP error</strong> — against 7 of 7 stops and 7.0 mm error for the
+              naive stop-at-every-waypoint version. Beyond timing, three fixes came out of running this on real
+              hardware rather than in simulation:
+            </p>
+            <ul>
+              <li><strong>The gripper no longer reopens itself.</strong> HPP treats a grasp as a rigid constraint,
+              so the plan freezes the jaw angle at whatever it measured at the start pose, in every waypoint of
+              every segment. <code>execute.py</code> injects the real open/close between segments, but the very
+              next segment's own per-waypoint loop used to re-send its frozen value on its first command — undoing
+              a close before the arm had moved at all with anything gripped. A tracked "current gripper angle" now
+              overrides that frozen value on every command issued after a jaw action fires, and the jaw move itself
+              waits for arrival rather than a flat <code>sleep(0.6)</code>.</li>
+              <li><strong>A stalled joint stops the run instead of drifting further behind it.</strong> A joint that
+              cannot reach one waypoint within its sync timeout will not reach the next one either — each further
+              waypoint just adds another whole step of unreachable distance on top of a gap that was never closing.
+              Past 3× the sync tolerance the run now aborts outright, naming the worst joint, rather than continuing
+              to stream commands into a trajectory nothing has collision-checked past that point.</li>
+              <li><strong>The dashboard's own execution job runs as a real subprocess</strong>, not an in-process
+              background thread sharing the dashboard's GIL — the same few milliseconds of FK math and Viser network
+              sends that keep the 3-D view live were blurring the servo bus's own 5 ms polling and wall-clock command
+              pacing. The command trace this all feeds also moved off the control loop onto its own thread, since a
+              bind-mounted filesystem can stall a write for tens of milliseconds at exactly the wrong moment.</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -644,7 +741,9 @@ solve:       minimize T  such that  s(0)=0, s(T)=1, constraints hold  ⇒  q_des
           <p>Python SDK for the Feetech STS/SCS serial bus servo protocol — port handling, packet framing, batch
           calibration planning (ID reassignment, limits, torque, baud rate), and the tick↔radian conversion layer
           everything else builds on. Ships a 7-tab Viser browser dashboard with live 3-D FK for homing, PID tuning,
-          and monitoring.</p>
+          and monitoring. Its guided calibration workflow now also tracks each servo's own EEPROM angle limits
+          (refusing to connect if they drift from what a calibration recorded), and can recentre a joint whose
+          travel straddles the encoder's 4095/0 wrap directly from the dashboard.</p>
 
           <h4>imu_sdk <span class="tag is-success">stable</span></h4>
           <p>Transport + firmware for M5StickC/ESP32 IMU boards (MPU6050/6500/6886/9250, 6- or 9-axis). Firmware
@@ -678,6 +777,14 @@ solve:       minimize T  such that  s(0)=0, s(T)=1, constraints hold  ⇒  q_des
           promoted checkpoint to the Hugging Face Hub — the run itself and sim2real deployment (Phase 5) are still
           ahead. See the
           <a href="https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md">roadmap</a>.</p>
+
+          <h4>soarm_tamp <span class="tag is-success">on hardware</span></h4>
+          <p>Long-horizon task-and-motion planning on <a href="https://github.com/thanhndv212/long-tamp">long_tamp</a>/HPP,
+          driving the physical SO-101 through <code>soarm_sdk</code>'s own <code>ServoRobot</code>. Planning (inside
+          an HPP container) and execution (on the host) deliberately never share a process — a waypoint manifest on
+          disk is the entire contract between them. First task, pick-and-place, has run end to end on hardware
+          (TCP within 7.0 mm / 2.2° of the commanded pose); see the <a href="#tamp">TAMP section</a> above for the
+          full pipeline and the safety/execution work that came out of running it for real.</p>
 
           <h4>SO-ARM100 <span class="tag is-light">vendored, read-only</span></h4>
           <p>The hardware vendor's repo (<a href="https://github.com/TheRobotStudio/SO-ARM100">TheRobotStudio</a>),
@@ -814,6 +921,11 @@ cd ../camera_calibration && pip install -e .</code></pre>
           different package indices, which plain pip can't express:</p>
           <pre><code>cd soarm_mjlab
 make sync-cpu   # or: uv sync --extra cpu --group dev</code></pre>
+          <p><code>soarm_tamp</code> installs like the rest on the host side, but planning needs the separate HPP
+          container (its own image, not pip-installable) since <code>pyhpp</code> only exists there:</p>
+          <pre><code>cd soarm_tamp && pip install -e .
+./scripts/hpp_container.sh plan --out runs/cube01 --viewer none   # container
+python -m soarm_tamp.execute runs/cube01 --dry-run                # host</code></pre>
         </div>
       </div>
     </div>
