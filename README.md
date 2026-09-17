@@ -4,33 +4,37 @@ This is the repository that contains source code for the [soarm-ws project websi
 
 This site is a living project page, not a point-in-time writeup: as `soarm-ws`'s packages evolve (see its [ARCHITECTURE.md](https://github.com/thanhndv212/soarm-ws/blob/main/ARCHITECTURE.md) and [SOARM_MJLAB_ROADMAP.md](https://github.com/thanhndv212/soarm-ws/blob/main/SOARM_MJLAB_ROADMAP.md)), update `index.html`'s Packages/Roadmap sections to match.
 
-## How to Create a GitHub.io Webpage
+## Docs site
 
-GitHub Pages is a free hosting service that takes HTML, CSS, and JavaScript files directly from a repository on GitHub and publishes a website. Learn more here: https://pages.github.com/
-Your site may take a few minutes to deploy. GitHub will show a green checkmark when it's ready.
+This is a [Docusaurus](https://docusaurus.io/) site: a multi-page documentation hub (sidebar nav, search-ready,
+one page per topic) rather than the single scrolling page this repo used to be. It's modeled on
+[docs.robotis.com](https://docs.robotis.com/)'s structure, adapted to `soarm-ws`'s actual packages.
 
 ### Website Structure
 
 ```
 soarm-ws-webpage/
-├── index.html
-├── static/
-│   ├── css/
-│   ├── js/
-│   └── images/
-└── README.md
+├── docs/                  # all doc pages (Markdown), organized per sidebars.js
+├── docusaurus.config.js   # site config (nav, footer, GitHub Pages settings)
+├── sidebars.js            # sidebar structure
+├── src/css/custom.css     # theme overrides
+├── static/img/            # diagrams and images referenced from docs/
+└── package.json
 ```
 
-- `index.html`: the project's landing page (overview, architecture, packages, hardware, simulation/learning, roadmap, installation).
-- `static/`: static assets — Bulma/FontAwesome CSS/JS (shared template assets, copied from the other project pages in this family) plus this project's own images (`soarm100.png`, `soarm_ws_architecture.svg`).
+Run locally:
+
+```bash
+npm install
+npm start        # dev server with hot reload
+npm run build    # production build into build/
+```
 
 ### Deploying
 
-```bash
-git add .
-git commit -m "Update project page"
-git push origin main
-```
+Deployment is automated by `.github/workflows/deploy.yml`: every push to `main` builds the site and publishes it
+via GitHub Pages. **One-time setup:** in the repo's Settings → Pages, set "Source" to **GitHub Actions** (not
+"Deploy from a branch") for this workflow to take effect.
 
 Then visit `https://thanhndv212.github.io/soarm-ws-webpage` to see the live site.
 
