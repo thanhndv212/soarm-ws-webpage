@@ -18,6 +18,14 @@ python -m soarm_tamp.dashboard            # from a checkout, same thing
 | **TCP Plan** | One Cartesian goal — the cheapest end-to-end pipeline check |
 | **Pick & Place** | The reference example: the full cube pick-and-place task |
 
+![soarm_tamp dashboard, Start Up tab, live and connected to the physical SO-101](/img/tamp_dashboard_startup.png)
+
+The **Execution Watchdog** tab is a read-only guard: it never changes offsets, signs, or servo limits — only
+flags a large calibration/model deviation before you plan, so a stale calibration surfaces here instead of
+mid-plan.
+
+![soarm_tamp dashboard, Execution Watchdog tab, confirming no calibration/model deviation](/img/tamp_dashboard_watchdog.png)
+
 Press the tabs in that order — each only makes sense once the one before it works. Plan/play/execute in
 the dashboard talk to the same container and manifest contract as the CLI scripts. TCP Plan is
 task-agnostic (any Cartesian goal); Pick & Place is wired specifically to the cube example's geometry.

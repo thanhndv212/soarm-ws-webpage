@@ -170,3 +170,9 @@ if viz is not None and imu is not None:
                                ekf_euler=ekf.euler_deg, ekf_bias=ekf.bias_dps,
                                orient_err=orient_err, ...)
 ```
+
+Every channel in that call lands as its own time-series panel in Rerun — raw IMU, EKF orientation and
+bias, tracking error, twist, joint angles, EE position, and button/state flags, all on the same tick so a
+session can be replayed and inspected stage-by-stage after the fact:
+
+![Rerun view of a teleop session: IMU, EKF orientation/bias, tracking error, twist, joint angles, and EE position, each as its own time-series panel](/img/rerun_teleop_view.png)
