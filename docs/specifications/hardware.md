@@ -22,6 +22,10 @@ title: Hardware
 | Debug tools | Official FEETECH Windows software, [FT_SCServo_Debug_Qt](https://github.com/Kotakku/FT_SCServo_Debug_Qt), and `soarm_sdk`'s own Viser dashboard. |
 | Power | 7.4–12 V DC, sized for peak current (~6 A per arm). Match barrel jack polarity (5.5/2.1 mm or 5.5/2.5 mm). |
 
+See [Servo Control Table](/specifications/servo-control-table) for the STS3215's full register map (EEPROM
+vs. SRAM, what each address means) — useful reference if you're debugging at the register level rather than
+through the dashboard.
+
 ## Sensing and peripherals
 
 - **Cameras:** UVC webcams, Intel RealSense D405/D435, or any RGB-D sensor supported via

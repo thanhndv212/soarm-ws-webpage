@@ -30,7 +30,11 @@ const sidebars = {
     {
       type: 'category',
       label: 'Specifications',
-      items: ['specifications/hardware', 'specifications/software'],
+      items: [
+        'specifications/hardware',
+        'specifications/servo-control-table',
+        'specifications/software',
+      ],
     },
     {
       type: 'category',
